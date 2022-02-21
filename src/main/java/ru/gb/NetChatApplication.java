@@ -1,12 +1,10 @@
 package ru.gb;
 
 import javafx.application.Application;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-
-import static javafx.fxml.FXMLLoader.load;
-
 
 public class NetChatApplication extends Application {
 
@@ -16,10 +14,14 @@ public class NetChatApplication extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        Parent root = load(getClass().getResource("/NetChatApplication.fxml"));
+        FXMLLoader loader = new FXMLLoader();
+        loader.setLocation(getClass().getResource("/NetChatApplication.fxml"));
+        Parent root = loader.load();
         primaryStage.setTitle("My Net Chat");
         primaryStage.setScene(new Scene(root, 700, 500));
         primaryStage.show();
+        NetChatController controller = loader.getController();
+        primaryStage.setOnCloseRequest(controller.getCloseEventHandler());
 
     }
 }

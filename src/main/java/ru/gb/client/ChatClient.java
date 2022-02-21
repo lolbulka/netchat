@@ -32,8 +32,10 @@ public class ChatClient {
                         final String authMsg = in.readUTF();
                         if (getCommandByText(authMsg) == AUTHOK) {
                             final String nick = authMsg.split(" ")[1];
-                            controller.addMessage("Успешная авторизация под ником " + nick);
                             controller.setAuth(true);
+                            controller.useFile();  //подключим запись в файл
+                            controller.readFile(); // загрузим историю чата
+                            controller.addMessage("Успешная авторизация под ником " + nick);
                             break;
                         } else {
                             controller.errMessage(authMsg);

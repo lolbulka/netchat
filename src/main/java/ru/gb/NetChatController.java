@@ -3,16 +3,24 @@ package ru.gb;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
+import javafx.stage.WindowEvent;
 import ru.gb.client.ChatClient;
+
+import java.io.*;
 
 import static ru.gb.Command.*;
 
 public class NetChatController {
     ChatClient client;
+    FileWriter fileWriter;
+    File file;
+    BufferedReader bufferedReader;
+    private String login = "";
     @FXML
     private Button changeNickButton;
     @FXML
@@ -37,7 +45,7 @@ public class NetChatController {
     private TextField answer;
     @FXML
     private Button loginButton;
-
+    private final EventHandler<WindowEvent> closeEventHandler = event -> onDisconnectSelect();
 
     public NetChatController() {
         Platform.runLater(this::activateButton);
@@ -52,25 +60,44 @@ public class NetChatController {
         }
     }
 
-    public void onClearChat(ActionEvent actionEvent) {
+    public void onClearChat() {
         tipArea.clear();
     }
 
-    public void onDisconnectSelect(ActionEvent actionEvent) {
+    public void onDisconnectSelect() {
         if (client != null) {
             client.sendMessage(END.getCommand());
             answer.setVisible(false);
         }
+        try {
+            if (fileWriter != null) {
+                fileWriter.flush();
+                fileWriter.close();
+                fileWriter = null;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public void addMessage(String message) {
-        tipArea.appendText(message + "\n");
+        Platform.runLater(() -> tipArea.appendText(message + "\n"));
+        writeInFile(message);
+    }
+
+    private void writeInFile(String message) {
+        try {
+            fileWriter.write(message + "\n");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
 
-    public void btnAuthClick(ActionEvent actionEvent) {
+    public void btnAuthClick() {
         client = new ChatClient(this);
         client.sendMessage(AUTH.getCommand() + " " + loginField.getText() + " " + passwordField.getText());
+        login = loginField.getText();
     }
 
     public void selectClient(MouseEvent mouseEvent) {
@@ -94,6 +121,34 @@ public class NetChatController {
         }
     }
 
+    public void readFile() {
+        try {
+            bufferedReader = new BufferedReader(new FileReader(file));
+            LineNumberReader count = new LineNumberReader(new FileReader(file));
+            String line;
+            try {
+                count.skip(Long.MAX_VALUE);
+                int result = count.getLineNumber() + 1;
+                int strCount = 100;
+                if (result > strCount) {
+                    result -= strCount;
+                    for (int i = 1; i < result; ++i)
+                        bufferedReader.readLine();
+                }
+                while ((line = bufferedReader.readLine()) != null) {
+                    String finalLine = line;
+                    Platform.runLater(() -> tipArea.appendText(finalLine + "\n"));
+                }
+                count.close();
+                bufferedReader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
     public void updateClientList(String[] clients) {
         clientList.getItems().clear();
         clientList.getItems().addAll(clients);
@@ -104,6 +159,7 @@ public class NetChatController {
         answer.clear();
         answer.appendText(authMsg);
     }
+
     public void activateButton(){
         loginButton.disableProperty().bind(
                 Bindings.isEmpty(loginField.textProperty())
@@ -114,9 +170,35 @@ public class NetChatController {
         );
     }
 
-    public void btnChangeNickClick(ActionEvent actionEvent) {
+    public void btnChangeNickClick() {
         client.sendMessage(CHANGENICK.getCommand() + " " + nickField.getText());
 
+    }
+
+    public void useFile() {
+        String path = new File("").getAbsolutePath();
+        String newDir = "\\history";
+        boolean mkdir = new File(path + newDir).mkdir();
+        file = new File(path + newDir + File.separator + "history_" + login + ".txt");
+        if (!file.exists()) {
+            try {
+                final boolean newFile = file.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        try {
+            System.out.println(file.getAbsolutePath());
+            System.out.println(file.getName());
+            fileWriter = new FileWriter(file, true);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public javafx.event.EventHandler<WindowEvent> getCloseEventHandler() {
+        return closeEventHandler;
     }
 }
 
