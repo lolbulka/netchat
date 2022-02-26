@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
 import static ru.gb.Command.*;
@@ -16,6 +19,7 @@ public class ChatServer {
     private final Map<String, ClientHandler> clients;
     private final AuthService authService;
     private final JdbcWork jdbcWork;
+    private final int poolSize = 5;
 
     public AuthService getAuthService() {
         return authService;
@@ -26,10 +30,7 @@ public class ChatServer {
         authService = new InMemoryAuthService();
         jdbcWork = new JdbcWork();
         jdbcWork.connect();
-        //jdbcWork.change();
-        //jdbcWork.createTable();
-        //jdbcWork.insert();
-        //jdbcWork.select();
+        jdbcWork.resetAll(); //сбросим всех оставшихся в false
     }
 
     public boolean isNickBusy(String nick) {
@@ -38,15 +39,18 @@ public class ChatServer {
 
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(8189)) {
+            ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()
+                    * poolSize);
             while (true) {
                 System.out.println("Ждем подключения клиента...");
-                final Socket socket = serverSocket.accept();
-                new ClientHandler(socket, this, jdbcWork);
+                Socket socket = serverSocket.accept();
+                service.execute(new ClientHandler(socket, this, jdbcWork));
                 System.out.println("Клиент подключился.");
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+        jdbcWork.disconnect();
     }
 
     public void subscribe(ClientHandler client) {
@@ -61,7 +65,6 @@ public class ChatServer {
 
     public void broadcast(String message) {
         for (ClientHandler client : clients.values()) {
-            //System.out.println("отсыл сооб" + message);
             client.sendMessage(message);
         }
     }
@@ -86,7 +89,6 @@ public class ChatServer {
             }
             from.sendMessage("Участника с ником " + whisper + " нет в чате.");
         }
-
     }
 
     public void sendMessageToClient(ClientHandler from, String nickTo, String message) {
@@ -118,7 +120,6 @@ public class ChatServer {
         user.setNick(newNick);
         clients.put(newNick, user);
         broadcastClientList();
-        //jdbcWork.select();
     }
 
     public boolean isNickBusyDB(ClientHandler client, String newNick) {

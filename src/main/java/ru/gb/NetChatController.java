@@ -11,16 +11,18 @@ import javafx.scene.layout.HBox;
 import javafx.stage.WindowEvent;
 import ru.gb.client.ChatClient;
 
-import java.io.*;
-
 import static ru.gb.Command.*;
 
 public class NetChatController {
     ChatClient client;
-    FileWriter fileWriter;
-    File file;
-    BufferedReader bufferedReader;
+    HistoryHandler historyHandler;
     private String login = "";
+    JdbcWork jdbcWork;
+
+    public TextArea getTipArea() {
+        return tipArea;
+    }
+
     @FXML
     private Button changeNickButton;
     @FXML
@@ -45,9 +47,12 @@ public class NetChatController {
     private TextField answer;
     @FXML
     private Button loginButton;
-    private final EventHandler<WindowEvent> closeEventHandler = event -> onDisconnectSelect();
+    private final EventHandler<WindowEvent> closeEventHandler = event -> {
+        onDisconnectSelect();
+    };
 
     public NetChatController() {
+        jdbcWork = new JdbcWork();
         Platform.runLater(this::activateButton);
     }
 
@@ -67,37 +72,36 @@ public class NetChatController {
     public void onDisconnectSelect() {
         if (client != null) {
             client.sendMessage(END.getCommand());
-            answer.setVisible(false);
         }
-        try {
-            if (fileWriter != null) {
-                fileWriter.flush();
-                fileWriter.close();
-                fileWriter = null;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        if (historyHandler != null) {
+            historyHandler.closeWriter();
         }
+        answer.setVisible(false);
     }
 
     public void addMessage(String message) {
         Platform.runLater(() -> tipArea.appendText(message + "\n"));
-        writeInFile(message);
+        historyHandler.writeInFile(message);
     }
 
-    private void writeInFile(String message) {
-        try {
-            fileWriter.write(message + "\n");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
+    //проверка ника и подключение нового клиента
 
     public void btnAuthClick() {
-        client = new ChatClient(this);
-        client.sendMessage(AUTH.getCommand() + " " + loginField.getText() + " " + passwordField.getText());
         login = loginField.getText();
+        jdbcWork.connect();
+        String nick = jdbcWork.getNickFromDB(loginField.getText(), passwordField.getText());
+        if (nick != null && !(jdbcWork.isInUse(loginField.getText()))) {
+            client = new ChatClient(this, historyHandler = new HistoryHandler(login));
+            client.sendMessage(AUTH.getCommand() + " " + loginField.getText() + " " + passwordField.getText() +
+                    " " + nick);
+        } else {
+            if (nick == null) {
+                errMessage("Неверные логин или пароль");
+            } else {
+                errMessage("Ник уже занят");
+            }
+        }
+        jdbcWork.disconnect();
     }
 
     public void selectClient(MouseEvent mouseEvent) {
@@ -118,34 +122,6 @@ public class NetChatController {
         messageBox.setVisible(isAuthSuccess);
         if (!isAuthSuccess){
             client = null;
-        }
-    }
-
-    public void readFile() {
-        try {
-            bufferedReader = new BufferedReader(new FileReader(file));
-            LineNumberReader count = new LineNumberReader(new FileReader(file));
-            String line;
-            try {
-                count.skip(Long.MAX_VALUE);
-                int result = count.getLineNumber() + 1;
-                int strCount = 100;
-                if (result > strCount) {
-                    result -= strCount;
-                    for (int i = 1; i < result; ++i)
-                        bufferedReader.readLine();
-                }
-                while ((line = bufferedReader.readLine()) != null) {
-                    String finalLine = line;
-                    Platform.runLater(() -> tipArea.appendText(finalLine + "\n"));
-                }
-                count.close();
-                bufferedReader.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         }
     }
 
@@ -174,28 +150,6 @@ public class NetChatController {
         client.sendMessage(CHANGENICK.getCommand() + " " + nickField.getText());
 
     }
-
-    public void useFile() {
-        String path = new File("").getAbsolutePath();
-        String newDir = "\\history";
-        boolean mkdir = new File(path + newDir).mkdir();
-        file = new File(path + newDir + File.separator + "history_" + login + ".txt");
-        if (!file.exists()) {
-            try {
-                final boolean newFile = file.createNewFile();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-        try {
-            System.out.println(file.getAbsolutePath());
-            System.out.println(file.getName());
-            fileWriter = new FileWriter(file, true);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
 
     public javafx.event.EventHandler<WindowEvent> getCloseEventHandler() {
         return closeEventHandler;

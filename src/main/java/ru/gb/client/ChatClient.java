@@ -1,7 +1,9 @@
 package ru.gb.client;
 
 import javafx.application.Platform;
+import ru.gb.HistoryHandler;
 import ru.gb.NetChatController;
+import ru.gb.server.ChatServer;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -15,10 +17,17 @@ public class ChatClient {
     private DataInputStream in;
     private DataOutputStream out;
     private final NetChatController controller;
+    private final HistoryHandler historyHandler;
+    private String nick;
 
-    public ChatClient(NetChatController controller) {
+    public ChatClient(NetChatController controller, HistoryHandler historyHandler) {
         this.controller = controller;
+        this.historyHandler = historyHandler;
         openConnection();
+    }
+
+    public String getNick() {
+        return nick;
     }
 
     private void openConnection() {
@@ -31,10 +40,10 @@ public class ChatClient {
                     while (true) {
                         final String authMsg = in.readUTF();
                         if (getCommandByText(authMsg) == AUTHOK) {
-                            final String nick = authMsg.split(" ")[1];
+                            nick = authMsg.split(" ")[1];
                             controller.setAuth(true);
-                            controller.useFile();  //подключим запись в файл
-                            controller.readFile(); // загрузим историю чата
+                            historyHandler.useFile();  //подключим запись в файл
+                            historyHandler.readFile(controller); // загрузим историю чата
                             controller.addMessage("Успешная авторизация под ником " + nick);
                             break;
                         } else {
@@ -65,7 +74,7 @@ public class ChatClient {
         }
     }
 
-    private void closeConnection() {
+    public void closeConnection() {
         if (in != null) {
             try {
                 in.close();
