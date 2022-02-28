@@ -76,6 +76,7 @@ public class NetChatController {
         if (historyHandler != null) {
             historyHandler.closeWriter();
         }
+        tipArea.clear();
         answer.setVisible(false);
     }
 
